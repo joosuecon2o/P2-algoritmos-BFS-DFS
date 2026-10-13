@@ -1,0 +1,542 @@
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-noshorthands,es-tabla,es-nodecimaldot]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+% ---------- Formato del código ----------
+\definecolor{fondo}{RGB}{247,247,247}
+\definecolor{comentario}{RGB}{95,125,95}
+\definecolor{clave}{RGB}{0,70,150}
+\definecolor{cadena}{RGB}{160,60,40}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{clave}\bfseries,
+    commentstyle=\color{comentario}\itshape,
+    stringstyle=\color{cadena},
+    backgroundcolor=\color{fondo},
+    frame=single,
+    rulecolor=\color{black!25},
+    showstringspaces=false,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    captionpos=b,
+    literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
+}
+\renewcommand{\lstlistingname}{Código}
+
+% ---------- Figura con los tres tamaños de un modelo ----------
+% #1 = prefijo del archivo en imagenes/, #2 = nombre del modelo, #3 = etiqueta
+\newcommand{\tresgrafos}[3]{%
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{imagenes/#1_n50.png}
+        \caption{$n = 50$}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{imagenes/#1_n200.png}
+        \caption{$n = 200$}
+    \end{subfigure}
+
+    \medskip
+    \begin{subfigure}{0.75\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{imagenes/#1_n500.png}
+        \caption{$n = 500$}
+    \end{subfigure}
+    \caption{Grafos generados con el modelo #2.}
+    \label{#3}
+\end{figure}
+\clearpage
+}
+
+\title{Proyecto 1\\Biblioteca de generación y manejo de grafos}
+\author{Josue gutierrez Andrade\\[4pt]\small Diseño y Análisis de Algoritmos}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Se presenta una biblioteca orientada a objetos, escrita en Python~3, para describir
+y generar grafos. La biblioteca define las clases \texttt{Nodo}, \texttt{Arista} y
+\texttt{Grafo}, e implementa seis modelos de generación: malla, Erd\H{o}s--Rényi,
+Gilbert, geográfico simple, Barabási--Albert y Dorogovtsev--Mendes. Para cada modelo
+se generaron grafos de 50, 200 y 500 nodos, que se exportaron a formato GraphViz y se
+visualizaron con Gephi.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+% =====================================================================
+\section{Estructura de la biblioteca}
+
+El código está organizado en el paquete \texttt{grafos} y un script de apoyo:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+Archivo & Contenido \\
+\midrule
+\texttt{grafos/nodo.py} & Clase \texttt{Nodo} \\
+\texttt{grafos/arista.py} & Clase \texttt{Arista} \\
+\texttt{grafos/grafo.py} & Clase \texttt{Grafo} \\
+\texttt{grafos/generadores.py} & Los seis generadores de grafos \\
+\texttt{generar\_gv.py} & Script que produce los 18 archivos \texttt{.gv} \\
+\texttt{gv/} & Archivos GraphViz generados \\
+\texttt{imagenes/} & Visualizaciones hechas con Gephi \\
+\bottomrule
+\end{tabular}
+\caption{Archivos del proyecto.}
+\end{table}
+
+% =====================================================================
+\section{Representación de los grafos}
+
+\subsection{Clase \texttt{Nodo}}
+
+Un nodo solo almacena su identificador, \texttt{id\_nodo}. La igualdad y el
+\emph{hash} se definen a partir de ese identificador, de modo que dos objetos
+\texttt{Nodo} con el mismo identificador se consideran el mismo nodo. El identificador
+puede ser cualquier valor \emph{hashable}: los modelos aleatorios usan enteros
+$0, 1, \dots, n-1$ y la malla usa tuplas $(i, j)$.
+
+\subsection{Clase \texttt{Arista}}
+
+Una arista guarda referencias a sus nodos \texttt{origen} y \texttt{destino}, una
+bandera \texttt{dirigida} y un \texttt{peso} opcional (por omisión \texttt{None}).
+
+\subsection{Clase \texttt{Grafo}}
+
+El grafo se representa con una \textbf{lista de adyacencia basada en conjuntos},
+acompañada de una lista de aristas. La clase mantiene cuatro estructuras:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+Atributo & Tipo & Contenido \\
+\midrule
+\texttt{nodos} & \texttt{dict} & identificador $\rightarrow$ objeto \texttt{Nodo} \\
+\texttt{aristas} & \texttt{list} & objetos \texttt{Arista}, en orden de inserción \\
+\texttt{\_vecinos} & \texttt{dict} de \texttt{set} & identificador $\rightarrow$ identificadores adyacentes \\
+\texttt{\_grado} & \texttt{dict} & identificador $\rightarrow$ número de aristas incidentes \\
+\bottomrule
+\end{tabular}
+\caption{Atributos de la clase \texttt{Grafo}.}
+\end{table}
+
+Usar conjuntos en \texttt{\_vecinos} permite consultar si una arista existe en tiempo
+$O(1)$ promedio, lo que resulta esencial para los generadores, que hacen esa consulta
+cada vez que intentan agregar una arista. La lista \texttt{aristas} es la única
+estructura que conserva el peso y la dirección de cada arista, y es la que se recorre
+al exportar el grafo.
+
+\subsection{Métodos de \texttt{Grafo}}
+
+\begin{description}
+\item[\texttt{agregar\_nodo(id\_nodo)}] Crea el nodo si no existe, inicializa su
+conjunto de vecinos vacío y su grado en cero, y devuelve el objeto \texttt{Nodo}.
+Si el nodo ya existía, devuelve el existente sin modificar nada.
+
+\item[\texttt{existe\_arista(id\_nodo1, id\_nodo2)}] Devuelve \texttt{True} si
+\texttt{id\_nodo2} está en el conjunto de vecinos de \texttt{id\_nodo1}.
+
+\item[\texttt{agregar\_arista(id\_nodo1, id\_nodo2, peso=None)}] Agrega la arista y
+la devuelve. Si la arista es un lazo o ya existe, no hace nada y devuelve
+\texttt{None}; por lo tanto, los grafos de la biblioteca son siempre \emph{simples}.
+Los generadores aprovechan este valor de retorno para saber si la arista realmente
+se creó.
+
+\item[\texttt{vecinos(id\_nodo)}] Devuelve el conjunto de identificadores adyacentes.
+
+\item[\texttt{grado(id\_nodo)}] Devuelve el número de aristas incidentes en el nodo.
+En grafos dirigidos cuenta tanto las aristas de entrada como las de salida.
+
+\item[\texttt{es\_conexo()}] Hace un recorrido en profundidad iterativo (con una pila)
+desde un nodo cualquiera y verifica que se alcancen todos los nodos. Ignora la
+dirección de las aristas, así que en grafos dirigidos evalúa conexidad débil.
+Su costo es $O(|V| + |E|)$.
+
+\item[\texttt{guardar\_graphviz(archivo)}] Escribe el grafo en formato GraphViz:
+primero todos los nodos y después todas las aristas, usando \texttt{graph} y
+\texttt{--} para grafos no dirigidos, o \texttt{digraph} y \texttt{->} para dirigidos.
+\end{description}
+
+\begin{lstlisting}[caption={Método \texttt{agregar\_arista} de la clase \texttt{Grafo}.}]
+def agregar_arista(self, id_nodo1, id_nodo2, peso=None):
+    self.agregar_nodo(id_nodo1)
+    self.agregar_nodo(id_nodo2)
+    if id_nodo1 == id_nodo2 or self.existe_arista(id_nodo1, id_nodo2):
+        return None
+    arista = Arista(self.nodos[id_nodo1], self.nodos[id_nodo2], self.dirigido, peso)
+    self.aristas.append(arista)
+    self._vecinos[id_nodo1].add(id_nodo2)
+    if not self.dirigido:
+        self._vecinos[id_nodo2].add(id_nodo1)
+    self._grado[id_nodo1] += 1
+    self._grado[id_nodo2] += 1
+    return arista
+\end{lstlisting}
+
+En un grafo no dirigido la adyacencia se registra en ambos sentidos, pero la arista
+aparece una sola vez en la lista \texttt{aristas}. En un grafo dirigido,
+\texttt{\_vecinos[u]} contiene únicamente los sucesores de $u$, por lo que las aristas
+$u \rightarrow v$ y $v \rightarrow u$ pueden coexistir.
+
+% =====================================================================
+\section{Generadores de grafos}
+
+Todos los generadores reciben un parámetro opcional \texttt{dirigido} (por omisión
+\texttt{False}) y devuelven un objeto \texttt{Grafo}. Cinco de los seis modelos son
+aleatorios y usan el módulo estándar \texttt{random}; como no se fija una semilla,
+cada ejecución produce un grafo distinto.
+
+% ---------------------------------------------------------------------
+\subsection{Malla: \texttt{grafo\_malla(m, n)}}
+
+Genera una malla de $m \times n$ nodos. Cada nodo se identifica con la tupla $(i, j)$,
+con $0 \le i < m$ y $0 \le j < n$, y se conecta con el nodo $(i+1, j)$ y con el nodo
+$(i, j+1)$ cuando estos existen. Es el único modelo determinista.
+
+\begin{lstlisting}[caption={Generador de malla.}]
+def grafo_malla(m, n, dirigido=False):
+    grafo = Grafo(dirigido)
+    for i in range(m):
+        for j in range(n):
+            grafo.agregar_nodo((i, j))
+    for i in range(m):
+        for j in range(n):
+            if i < m - 1:
+                grafo.agregar_arista((i, j), (i + 1, j))
+            if j < n - 1:
+                grafo.agregar_arista((i, j), (i, j + 1))
+    return grafo
+\end{lstlisting}
+
+El grafo resultante tiene $mn$ nodos y $n(m-1) + m(n-1) = 2mn - m - n$ aristas, y se
+construye en tiempo $\Theta(mn)$.
+
+\paragraph{Ejemplo.} La llamada \texttt{grafo\_malla(2, 3)} produce una malla de
+6 nodos y $2 \cdot 6 - 2 - 3 = 7$ aristas. Al guardarla con
+\texttt{guardar\_graphviz} se obtiene el siguiente archivo:
+
+\begin{lstlisting}[language={},caption={Archivo \texttt{.gv} de la malla de $2 \times 3$.}]
+graph G {
+    "(0, 0)";
+    "(0, 1)";
+    "(0, 2)";
+    "(1, 0)";
+    "(1, 1)";
+    "(1, 2)";
+    "(0, 0)" -- "(1, 0)";
+    "(0, 0)" -- "(0, 1)";
+    "(0, 1)" -- "(1, 1)";
+    "(0, 1)" -- "(0, 2)";
+    "(0, 2)" -- "(1, 2)";
+    "(1, 0)" -- "(1, 1)";
+    "(1, 1)" -- "(1, 2)";
+}
+\end{lstlisting}
+
+% ---------------------------------------------------------------------
+\subsection{Erd\H{o}s--Rényi: \texttt{grafo\_erdos\_renyi(n, m)}}
+
+Crea $n$ nodos y elige $m$ aristas distintas uniformemente al azar. En cada iteración
+se toma un par de nodos distintos con \texttt{random.sample} y se intenta agregar la
+arista; solo se cuenta si \texttt{agregar\_arista} la creó, es decir, si no estaba
+repetida.
+
+\begin{lstlisting}[caption={Generador de Erd\H{o}s--Rényi.}]
+def grafo_erdos_renyi(n, m, dirigido=False):
+    max_m = n * (n - 1) if dirigido else n * (n - 1) // 2
+    if m > max_m:
+        raise ValueError(f"m={m} excede el máximo de aristas posibles ({max_m}) para n={n}")
+
+    grafo = Grafo(dirigido)
+    for i in range(n):
+        grafo.agregar_nodo(i)
+
+    aristas_creadas = 0
+    while aristas_creadas < m:
+        u, v = random.sample(range(n), 2)
+        if grafo.agregar_arista(u, v) is not None:
+            aristas_creadas += 1
+    return grafo
+\end{lstlisting}
+
+La validación inicial evita un ciclo infinito: si se pidieran más aristas que las
+$M = \binom{n}{2}$ posibles (o $M = n(n-1)$ en el caso dirigido), el ciclo nunca
+terminaría. Cuando ya hay $k$ aristas, un intento tiene éxito con probabilidad
+$1 - k/M$, de modo que el número esperado de intentos es
+\[
+    \sum_{k=0}^{m-1} \frac{M}{M-k},
+\]
+que es cercano a $m$ cuando el grafo es disperso ($m \ll M$) y crece conforme $m$ se
+aproxima a $M$.
+
+\paragraph{Ejemplo.} \texttt{grafo\_erdos\_renyi(50, 148)} genera un grafo de 50 nodos
+con exactamente 148 aristas.
+
+% ---------------------------------------------------------------------
+\subsection{Gilbert: \texttt{grafo\_gilbert(n, p)}}
+
+Crea $n$ nodos y, para cada par posible, agrega la arista con probabilidad $p$ de
+forma independiente. En el caso no dirigido cada par $\{i, j\}$ se considera una sola
+vez (con $i < j$); en el dirigido se consideran los dos pares ordenados.
+
+\begin{lstlisting}[caption={Generador de Gilbert.}]
+def grafo_gilbert(n, p, dirigido=False):
+    grafo = Grafo(dirigido)
+    for i in range(n):
+        grafo.agregar_nodo(i)
+
+    for i in range(n):
+        for j in range(n):
+            if i == j or (not dirigido and j < i):
+                continue
+            if random.random() < p:
+                grafo.agregar_arista(i, j)
+    return grafo
+\end{lstlisting}
+
+A diferencia del modelo de Erd\H{o}s--Rényi, el número de aristas no es fijo: es una
+variable aleatoria binomial con valor esperado $p\binom{n}{2}$ en el caso no dirigido.
+El costo es $\Theta(n^2)$, porque se revisan todos los pares.
+
+\paragraph{Ejemplo.} \texttt{grafo\_gilbert(50, 0.1)} genera un grafo de 50 nodos con
+alrededor de $0.1 \cdot \binom{50}{2} = 122.5$ aristas en promedio.
+
+% ---------------------------------------------------------------------
+\subsection{Geográfico simple: \texttt{grafo\_geografico(n, r)}}
+
+Asigna a cada nodo una posición $(x, y)$ uniforme en el cuadrado unitario y conecta
+dos nodos cuando su distancia euclidiana es menor o igual que $r$.
+
+\begin{lstlisting}[caption={Generador geográfico simple.}]
+def grafo_geografico(n, r, dirigido=False):
+    grafo = Grafo(dirigido)
+    posiciones = [(random.random(), random.random()) for _ in range(n)]
+    for i in range(n):
+        grafo.agregar_nodo(i)
+
+    for i in range(n):
+        for j in range(n):
+            if i == j or (not dirigido and j < i):
+                continue
+            dx = posiciones[i][0] - posiciones[j][0]
+            dy = posiciones[i][1] - posiciones[j][1]
+            if math.hypot(dx, dy) <= r:
+                grafo.agregar_arista(i, j)
+    return grafo
+\end{lstlisting}
+
+La aleatoriedad está solo en las posiciones; una vez fijadas, las aristas quedan
+determinadas. Las posiciones se usan únicamente durante la generación y no se guardan
+en el grafo. El costo es $\Theta(n^2)$, por la comparación de todos los pares.
+
+\paragraph{Ejemplo.} \texttt{grafo\_geografico(50, 0.22)} genera un grafo de 50 nodos
+en el que se conectan los nodos situados a distancia $0.22$ o menor.
+
+% ---------------------------------------------------------------------
+\subsection{Barabási--Albert: \texttt{grafo\_barabasi\_albert(n, d)}}
+
+Se implementa la variante del modelo en la que $d$ es el grado máximo de cada nodo.
+Los primeros $d$ nodos se conectan todos entre sí. Después, cada nodo nuevo recorre
+los nodos existentes en orden aleatorio y se conecta con cada candidato $v$ con
+probabilidad
+\[
+    P(v) = 1 - \frac{\operatorname{grado}(v)}{d},
+\]
+deteniéndose cuando el nodo nuevo alcanza $d$ aristas.
+
+\begin{lstlisting}[caption={Generador de Barabási--Albert.}]
+def grafo_barabasi_albert(n, d, dirigido=False):
+    grafo = Grafo(dirigido)
+    for i in range(min(d, n)):
+        grafo.agregar_nodo(i)
+    for i in range(min(d, n)):
+        for j in range(i + 1, min(d, n)):
+            grafo.agregar_arista(i, j)
+
+    for nuevo in range(d, n):
+        grafo.agregar_nodo(nuevo)
+        candidatos = list(range(nuevo))
+        random.shuffle(candidatos)
+        for objetivo in candidatos:
+            if grafo.grado(nuevo) >= d:
+                break
+            probabilidad = 1 - grafo.grado(objetivo) / d
+            if random.random() < probabilidad:
+                grafo.agregar_arista(nuevo, objetivo)
+    return grafo
+\end{lstlisting}
+
+Un nodo que ya tiene grado $d$ tiene probabilidad cero de recibir más aristas, por lo
+que ningún nodo supera el grado $d$ y el grafo tiene a lo más $nd/2$ aristas. El orden
+aleatorio de los candidatos evita favorecer siempre a los nodos con identificador más
+bajo. Cada candidato se prueba una sola vez, así que un nodo nuevo puede terminar con
+menos de $d$ aristas. Como cada nodo nuevo recorre hasta todos los anteriores, el
+costo es $O(n^2)$.
+
+\paragraph{Ejemplo.} \texttt{grafo\_barabasi\_albert(50, 4)} genera un grafo de
+50 nodos con grado máximo 4 y, por lo tanto, a lo más 100 aristas.
+
+% ---------------------------------------------------------------------
+\subsection{Dorogovtsev--Mendes: \texttt{grafo\_dorogovtsev\_mendes(n)}}
+
+Comienza con un triángulo formado por los nodos 0, 1 y 2. Cada nodo nuevo elige una
+arista existente uniformemente al azar y se conecta con sus dos extremos, con lo que
+forma un nuevo triángulo.
+
+\begin{lstlisting}[caption={Generador de Dorogovtsev--Mendes.}]
+def grafo_dorogovtsev_mendes(n, dirigido=False):
+    grafo = Grafo(dirigido)
+    for i in range(3):
+        grafo.agregar_nodo(i)
+    grafo.agregar_arista(0, 1)
+    grafo.agregar_arista(1, 2)
+    grafo.agregar_arista(2, 0)
+
+    for nuevo in range(3, n):
+        grafo.agregar_nodo(nuevo)
+        arista = random.choice(grafo.aristas)
+        grafo.agregar_arista(nuevo, arista.origen.id_nodo)
+        grafo.agregar_arista(nuevo, arista.destino.id_nodo)
+    return grafo
+\end{lstlisting}
+
+Cada nodo nuevo aporta exactamente dos aristas, así que el grafo tiene siempre
+$3 + 2(n-3) = 2n - 3$ aristas y es conexo por construcción. Elegir una arista al azar
+equivale a elegir sus extremos con probabilidad proporcional a su grado, lo que
+favorece a los nodos mejor conectados. Como \texttt{random.choice} toma tiempo
+constante, el costo total es $\Theta(n)$.
+
+\paragraph{Ejemplo.} \texttt{grafo\_dorogovtsev\_mendes(50)} genera un grafo de
+50 nodos y $2 \cdot 50 - 3 = 97$ aristas.
+
+% ---------------------------------------------------------------------
+\subsection{Resumen}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llll}
+\toprule
+Modelo & Parámetros & Aristas & Costo \\
+\midrule
+Malla & $m$, $n$ & $2mn - m - n$ & $\Theta(mn)$ \\
+Erd\H{o}s--Rényi & $n$, $m$ & $m$ & $\approx m$ intentos si $m \ll \binom{n}{2}$ \\
+Gilbert & $n$, $p$ & $p\binom{n}{2}$ en promedio & $\Theta(n^2)$ \\
+Geográfico simple & $n$, $r$ & aleatorio & $\Theta(n^2)$ \\
+Barabási--Albert & $n$, $d$ & a lo más $nd/2$ & $O(n^2)$ \\
+Dorogovtsev--Mendes & $n$ & $2n - 3$ & $\Theta(n)$ \\
+\bottomrule
+\end{tabular}
+\caption{Resumen de los generadores (caso no dirigido).}
+\end{table}
+
+% =====================================================================
+\section{Ejemplo de uso}
+
+El siguiente programa genera un grafo con el modelo de Gilbert, consulta algunas de
+sus propiedades y lo guarda en formato GraphViz:
+
+\begin{lstlisting}[caption={Uso básico de la biblioteca.}]
+from grafos import grafo_gilbert
+
+g = grafo_gilbert(50, 0.1)
+
+print(g)                 # Grafo(nodos=50, aristas=..., dirigido=False)
+print(g.grado(0))        # grado del nodo 0
+print(g.vecinos(0))      # conjunto de vecinos del nodo 0
+print(g.es_conexo())     # True si todos los nodos están conectados
+
+g.guardar_graphviz("mi_grafo.gv")
+\end{lstlisting}
+
+% =====================================================================
+\section{Generación de los archivos GraphViz}
+
+El script \texttt{generar\_gv.py} genera 18 archivos \texttt{.gv}: tres tamaños
+(50, 200 y 500 nodos) por cada uno de los seis modelos. Para que las visualizaciones
+muestren una sola componente, cada grafo se vuelve a generar hasta que
+\texttt{es\_conexo()} devuelve \texttt{True}, con un máximo de 1000 intentos.
+
+Los parámetros de los modelos aleatorios se eligieron ligeramente por encima del
+umbral de conectividad, de modo que el grafo resulte conexo casi siempre:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+Modelo & Parámetro usado \\
+\midrule
+Erd\H{o}s--Rényi & $m = \operatorname{round}\!\left(\dfrac{n(\ln n + 2)}{2}\right)$ \\[10pt]
+Gilbert & $p = \dfrac{\ln n + 3}{n}$ \\[10pt]
+Geográfico simple & $r = \sqrt{\dfrac{\ln n + 4}{\pi n}}$ \\[10pt]
+Barabási--Albert & $d = 4$ \\[4pt]
+Malla & $5 \times 10$, $10 \times 20$ y $20 \times 25$ \\
+\bottomrule
+\end{tabular}
+\caption{Parámetros usados en \texttt{generar\_gv.py}.}
+\end{table}
+
+La tabla~\ref{tab:resultados} muestra el número de aristas de los grafos generados.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+ & \multicolumn{3}{c}{Aristas} \\
+\cmidrule(l){2-4}
+Modelo & $n = 50$ & $n = 200$ & $n = 500$ \\
+\midrule
+Erd\H{o}s--Rényi & 148 & 730 & 2054 \\
+Gilbert & 178 & 814 & 2241 \\
+Geográfico simple & 179 & 817 & 2445 \\
+Barabási--Albert & 96 & 395 & 996 \\
+Dorogovtsev--Mendes & 97 & 397 & 997 \\
+Malla & 85 & 370 & 955 \\
+\bottomrule
+\end{tabular}
+\caption{Número de aristas de los 18 grafos generados.}
+\label{tab:resultados}
+\end{table}
+
+Los valores coinciden con lo esperado: Erd\H{o}s--Rényi tiene exactamente el número de
+aristas solicitado, Dorogovtsev--Mendes tiene $2n - 3$, la malla tiene $2mn - m - n$ y
+Barabási--Albert queda apenas por debajo de su cota $nd/2$ (100, 400 y 1000).
+
+% =====================================================================
+\section{Visualización de los grafos}
+
+Los archivos \texttt{.gv} se visualizaron con Gephi. Las
+figuras~\ref{fig:erdos} a~\ref{fig:malla} muestran los 18 grafos generados.
+
+\tresgrafos{1_Erdos_Rényi}{Erd\H{o}s--Rényi}{fig:erdos}
+\tresgrafos{2_Gilbert}{Gilbert}{fig:gilbert}
+\tresgrafos{3_Geográfico}{geográfico simple}{fig:geografico}
+\tresgrafos{4_Barabasi_albert}{Barabási--Albert}{fig:barabasi}
+\tresgrafos{5_Dorogovtsev_mendes}{Dorogovtsev--Mendes}{fig:dorogovtsev}
+\tresgrafos{6_Malla}{malla}{fig:malla}
+
+\end{document}
