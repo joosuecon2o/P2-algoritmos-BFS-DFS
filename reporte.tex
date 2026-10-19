@@ -37,36 +37,42 @@
     literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
 }
 \renewcommand{\lstlistingname}{Código}
+\setlength{\emergencystretch}{3em}  % evita líneas desbordadas por nombres en \texttt
 
-% ---------- Figura con los tres tamaños de un modelo ----------
-% #1 = prefijo del archivo en imagenes/, #2 = nombre del modelo, #3 = etiqueta
-\newcommand{\tresgrafos}[3]{%
+% ---------- Figura con un grafo generado y sus tres árboles ----------
+% #1 = nombre base del archivo (sin extensión), #2 = título, #3 = etiqueta
+\newcommand{\cuatrografos}[3]{%
 \begin{figure}[H]
     \centering
-    \begin{subfigure}{0.49\textwidth}
+    \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{imagenes/#1_n50.png}
-        \caption{$n = 50$}
+        \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{imagenes/generados/#1.png}
+        \caption{Grafo generado}
     \end{subfigure}\hfill
-    \begin{subfigure}{0.49\textwidth}
+    \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{imagenes/#1_n200.png}
-        \caption{$n = 200$}
+        \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{imagenes/calculados/#1_BFS.png}
+        \caption{Árbol BFS}
     \end{subfigure}
 
     \medskip
-    \begin{subfigure}{0.75\textwidth}
+    \begin{subfigure}{0.48\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{imagenes/#1_n500.png}
-        \caption{$n = 500$}
+        \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{imagenes/calculados/#1_DFS_R.png}
+        \caption{Árbol DFS recursivo}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth,height=0.36\textheight,keepaspectratio]{imagenes/calculados/#1_DFS_I.png}
+        \caption{Árbol DFS iterativo}
     \end{subfigure}
-    \caption{Grafos generados con el modelo #2.}
+    \caption{#2. El nodo fuente aparece en rojo.}
     \label{#3}
 \end{figure}
 \clearpage
 }
 
-\title{Proyecto 1\\Biblioteca de generación y manejo de grafos}
+\title{Proyecto 2\\Algoritmos BFS y DFS}
 \author{Josue gutierrez Andrade\\[4pt]\small Diseño y Análisis de Algoritmos}
 \date{}
 
@@ -75,468 +81,313 @@
 \maketitle
 
 \begin{abstract}
-Se presenta una biblioteca orientada a objetos, escrita en Python~3, para describir
-y generar grafos. La biblioteca define las clases \texttt{Nodo}, \texttt{Arista} y
-\texttt{Grafo}, e implementa seis modelos de generación: malla, Erd\H{o}s--Rényi,
-Gilbert, geográfico simple, Barabási--Albert y Dorogovtsev--Mendes. Para cada modelo
-se generaron grafos de 50, 200 y 500 nodos, que se exportaron a formato GraphViz y se
-visualizaron con Gephi.
+Sobre la biblioteca de grafos del Proyecto~1 se implementan tres métodos de la
+clase \texttt{Grafo}: \texttt{BFS}, \texttt{DFS\_R} y \texttt{DFS\_I}. Dado un nodo
+fuente $s$, cada uno calcula el árbol inducido por la búsqueda a lo ancho o por la
+búsqueda en profundidad (recursiva e iterativa). Los métodos se aplicaron a 18
+grafos, generados con seis modelos y con 30, 100 y 500 nodos, lo que dio 54 árboles.
+Todos los grafos y árboles se exportaron a formato GraphViz y se visualizaron.
 \end{abstract}
 
 \tableofcontents
 \clearpage
 
 % =====================================================================
-\section{Estructura de la biblioteca}
+\section{Introducción}
 
-El código está organizado en el paquete \texttt{grafos} y un script de apoyo:
-
-\begin{table}[H]
-\centering
-\begin{tabular}{ll}
-\toprule
-Archivo & Contenido \\
-\midrule
-\texttt{grafos/nodo.py} & Clase \texttt{Nodo} \\
-\texttt{grafos/arista.py} & Clase \texttt{Arista} \\
-\texttt{grafos/grafo.py} & Clase \texttt{Grafo} \\
-\texttt{grafos/generadores.py} & Los seis generadores de grafos \\
-\texttt{generar\_gv.py} & Script que produce los 18 archivos \texttt{.gv} \\
-\texttt{gv/} & Archivos GraphViz generados \\
-\texttt{imagenes/} & Visualizaciones hechas con Gephi \\
-\bottomrule
-\end{tabular}
-\caption{Archivos del proyecto.}
-\end{table}
+La búsqueda a lo ancho (BFS) y la búsqueda en profundidad (DFS) recorren todos los
+nodos alcanzables desde un nodo fuente $s$. Cada recorrido define un árbol con raíz
+en $s$: cuando un nodo $v$ se descubre desde un nodo $u$, la arista $(u, v)$ pasa a
+formar parte del árbol y $u$ se convierte en el padre de $v$. Los dos recorridos
+producen árboles con formas muy distintas. BFS genera árboles anchos y poco
+profundos, cuyos niveles coinciden con las distancias a $s$. DFS genera árboles
+angostos y profundos, que siguen un camino tan lejos como pueden antes de regresar.
 
 % =====================================================================
 \section{Representación de los grafos}
 
-\subsection{Clase \texttt{Nodo}}
+Los métodos se agregaron a la clase \texttt{Grafo} del Proyecto~1. Esa clase
+almacena el grafo como una lista de adyacencia basada en conjuntos: el atributo
+\texttt{\_vecinos} asocia a cada identificador de nodo el conjunto de
+identificadores adyacentes. Con esta representación, recorrer los vecinos de un
+nodo $u$ cuesta $O(\operatorname{grado}(u))$ y consultar si un nodo ya se visitó
+cuesta $O(1)$ en promedio, de modo que los tres recorridos toman tiempo
+$O(n + m)$, con $n$ nodos y $m$ aristas.
 
-Un nodo solo almacena su identificador, \texttt{id\_nodo}. La igualdad y el
-\emph{hash} se definen a partir de ese identificador, de modo que dos objetos
-\texttt{Nodo} con el mismo identificador se consideran el mismo nodo. El identificador
-puede ser cualquier valor \emph{hashable}: los modelos aleatorios usan enteros
-$0, 1, \dots, n-1$ y la malla usa tuplas $(i, j)$.
-
-\subsection{Clase \texttt{Arista}}
-
-Una arista guarda referencias a sus nodos \texttt{origen} y \texttt{destino}, una
-bandera \texttt{dirigida} y un \texttt{peso} opcional (por omisión \texttt{None}).
-
-\subsection{Clase \texttt{Grafo}}
-
-El grafo se representa con una \textbf{lista de adyacencia basada en conjuntos},
-acompañada de una lista de aristas. La clase mantiene cuatro estructuras:
-
-\begin{table}[H]
-\centering
-\begin{tabular}{lll}
-\toprule
-Atributo & Tipo & Contenido \\
-\midrule
-\texttt{nodos} & \texttt{dict} & identificador $\rightarrow$ objeto \texttt{Nodo} \\
-\texttt{aristas} & \texttt{list} & objetos \texttt{Arista}, en orden de inserción \\
-\texttt{\_vecinos} & \texttt{dict} de \texttt{set} & identificador $\rightarrow$ identificadores adyacentes \\
-\texttt{\_grado} & \texttt{dict} & identificador $\rightarrow$ número de aristas incidentes \\
-\bottomrule
-\end{tabular}
-\caption{Atributos de la clase \texttt{Grafo}.}
-\end{table}
-
-Usar conjuntos en \texttt{\_vecinos} permite consultar si una arista existe en tiempo
-$O(1)$ promedio, lo que resulta esencial para los generadores, que hacen esa consulta
-cada vez que intentan agregar una arista. La lista \texttt{aristas} es la única
-estructura que conserva el peso y la dirección de cada arista, y es la que se recorre
-al exportar el grafo.
-
-\subsection{Métodos de \texttt{Grafo}}
-
-\begin{description}
-\item[\texttt{agregar\_nodo(id\_nodo)}] Crea el nodo si no existe, inicializa su
-conjunto de vecinos vacío y su grado en cero, y devuelve el objeto \texttt{Nodo}.
-Si el nodo ya existía, devuelve el existente sin modificar nada.
-
-\item[\texttt{existe\_arista(id\_nodo1, id\_nodo2)}] Devuelve \texttt{True} si
-\texttt{id\_nodo2} está en el conjunto de vecinos de \texttt{id\_nodo1}.
-
-\item[\texttt{agregar\_arista(id\_nodo1, id\_nodo2, peso=None)}] Agrega la arista y
-la devuelve. Si la arista es un lazo o ya existe, no hace nada y devuelve
-\texttt{None}; por lo tanto, los grafos de la biblioteca son siempre \emph{simples}.
-Los generadores aprovechan este valor de retorno para saber si la arista realmente
-se creó.
-
-\item[\texttt{vecinos(id\_nodo)}] Devuelve el conjunto de identificadores adyacentes.
-
-\item[\texttt{grado(id\_nodo)}] Devuelve el número de aristas incidentes en el nodo.
-En grafos dirigidos cuenta tanto las aristas de entrada como las de salida.
-
-\item[\texttt{es\_conexo()}] Hace un recorrido en profundidad iterativo (con una pila)
-desde un nodo cualquiera y verifica que se alcancen todos los nodos. Ignora la
-dirección de las aristas, así que en grafos dirigidos evalúa conexidad débil.
-Su costo es $O(|V| + |E|)$.
-
-\item[\texttt{guardar\_graphviz(archivo)}] Escribe el grafo en formato GraphViz:
-primero todos los nodos y después todas las aristas, usando \texttt{graph} y
-\texttt{--} para grafos no dirigidos, o \texttt{digraph} y \texttt{->} para dirigidos.
-\end{description}
-
-\begin{lstlisting}[caption={Método \texttt{agregar\_arista} de la clase \texttt{Grafo}.}]
-def agregar_arista(self, id_nodo1, id_nodo2, peso=None):
-    self.agregar_nodo(id_nodo1)
-    self.agregar_nodo(id_nodo2)
-    if id_nodo1 == id_nodo2 or self.existe_arista(id_nodo1, id_nodo2):
-        return None
-    arista = Arista(self.nodos[id_nodo1], self.nodos[id_nodo2], self.dirigido, peso)
-    self.aristas.append(arista)
-    self._vecinos[id_nodo1].add(id_nodo2)
-    if not self.dirigido:
-        self._vecinos[id_nodo2].add(id_nodo1)
-    self._grado[id_nodo1] += 1
-    self._grado[id_nodo2] += 1
-    return arista
-\end{lstlisting}
-
-En un grafo no dirigido la adyacencia se registra en ambos sentidos, pero la arista
-aparece una sola vez en la lista \texttt{aristas}. En un grafo dirigido,
-\texttt{\_vecinos[u]} contiene únicamente los sucesores de $u$, por lo que las aristas
-$u \rightarrow v$ y $v \rightarrow u$ pueden coexistir.
+Cada método devuelve el árbol como un nuevo objeto \texttt{Grafo}, con el mismo
+tipo (dirigido o no) que el original. El árbol contiene los nodos alcanzables desde
+$s$ y las aristas $(\text{padre}, \text{hijo})$ del recorrido. Por eso puede
+exportarse con \texttt{guardar\_graphviz}, igual que cualquier otro grafo. Si $s$
+no existe en el grafo, los tres métodos lanzan \texttt{KeyError}.
 
 % =====================================================================
-\section{Generadores de grafos}
+\section{Algoritmos}
 
-Todos los generadores reciben un parámetro opcional \texttt{dirigido} (por omisión
-\texttt{False}) y devuelven un objeto \texttt{Grafo}. Cinco de los seis modelos son
-aleatorios y usan el módulo estándar \texttt{random}; como no se fija una semilla,
-cada ejecución produce un grafo distinto.
+\subsection{Búsqueda a lo ancho: \texttt{BFS(self, s)}}
 
-% ---------------------------------------------------------------------
-\subsection{Malla: \texttt{grafo\_malla(m, n)}}
-
-Genera una malla de $m \times n$ nodos. Cada nodo se identifica con la tupla $(i, j)$,
-con $0 \le i < m$ y $0 \le j < n$, y se conecta con el nodo $(i+1, j)$ y con el nodo
-$(i, j+1)$ cuando estos existen. Es el único modelo determinista.
-
-\begin{lstlisting}[caption={Generador de malla.}]
-def grafo_malla(m, n, dirigido=False):
-    grafo = Grafo(dirigido)
-    for i in range(m):
-        for j in range(n):
-            grafo.agregar_nodo((i, j))
-    for i in range(m):
-        for j in range(n):
-            if i < m - 1:
-                grafo.agregar_arista((i, j), (i + 1, j))
-            if j < n - 1:
-                grafo.agregar_arista((i, j), (i, j + 1))
-    return grafo
-\end{lstlisting}
-
-El grafo resultante tiene $mn$ nodos y $n(m-1) + m(n-1) = 2mn - m - n$ aristas, y se
-construye en tiempo $\Theta(mn)$.
-
-\paragraph{Ejemplo.} La llamada \texttt{grafo\_malla(2, 3)} produce una malla de
-6 nodos y $2 \cdot 6 - 2 - 3 = 7$ aristas. Al guardarla con
-\texttt{guardar\_graphviz} se obtiene el siguiente archivo:
-
-\begin{lstlisting}[language={},caption={Archivo \texttt{.gv} de la malla de $2 \times 3$.}]
-graph G {
-    "(0, 0)";
-    "(0, 1)";
-    "(0, 2)";
-    "(1, 0)";
-    "(1, 1)";
-    "(1, 2)";
-    "(0, 0)" -- "(1, 0)";
-    "(0, 0)" -- "(0, 1)";
-    "(0, 1)" -- "(1, 1)";
-    "(0, 1)" -- "(0, 2)";
-    "(0, 2)" -- "(1, 2)";
-    "(1, 0)" -- "(1, 1)";
-    "(1, 1)" -- "(1, 2)";
-}
-\end{lstlisting}
-
-% ---------------------------------------------------------------------
-\subsection{Erd\H{o}s--Rényi: \texttt{grafo\_erdos\_renyi(n, m)}}
-
-Crea $n$ nodos y elige $m$ aristas distintas uniformemente al azar. En cada iteración
-se toma un par de nodos distintos con \texttt{random.sample} y se intenta agregar la
-arista; solo se cuenta si \texttt{agregar\_arista} la creó, es decir, si no estaba
-repetida.
-
-\begin{lstlisting}[caption={Generador de Erd\H{o}s--Rényi.}]
-def grafo_erdos_renyi(n, m, dirigido=False):
-    max_m = n * (n - 1) if dirigido else n * (n - 1) // 2
-    if m > max_m:
-        raise ValueError(f"m={m} excede el máximo de aristas posibles ({max_m}) para n={n}")
-
-    grafo = Grafo(dirigido)
-    for i in range(n):
-        grafo.agregar_nodo(i)
-
-    aristas_creadas = 0
-    while aristas_creadas < m:
-        u, v = random.sample(range(n), 2)
-        if grafo.agregar_arista(u, v) is not None:
-            aristas_creadas += 1
-    return grafo
-\end{lstlisting}
-
-La validación inicial evita un ciclo infinito: si se pidieran más aristas que las
-$M = \binom{n}{2}$ posibles (o $M = n(n-1)$ en el caso dirigido), el ciclo nunca
-terminaría. Cuando ya hay $k$ aristas, un intento tiene éxito con probabilidad
-$1 - k/M$, de modo que el número esperado de intentos es
+Se sigue el algoritmo por capas visto en clase:
 \[
-    \sum_{k=0}^{m-1} \frac{M}{M-k},
+    L_0 = \{s\}, \qquad
+    L_{i+1} = \{\, v \notin L_0 \cup \dots \cup L_i \;:\; (u, v) \in E
+                 \text{ para algún } u \in L_i \,\}.
 \]
-que es cercano a $m$ cuando el grafo es disperso ($m \ll M$) y crece conforme $m$ se
-aproxima a $M$.
+Se recorre cada nodo $u$ de la capa actual y, por cada vecino $v$ que aún no se ha
+descubierto, se marca $v$ como descubierto, se agrega la arista $(u, v)$ al árbol y
+$v$ se añade a la siguiente capa. El ciclo termina cuando una capa queda vacía.
 
-\paragraph{Ejemplo.} \texttt{grafo\_erdos\_renyi(50, 148)} genera un grafo de 50 nodos
-con exactamente 148 aristas.
-
-% ---------------------------------------------------------------------
-\subsection{Gilbert: \texttt{grafo\_gilbert(n, p)}}
-
-Crea $n$ nodos y, para cada par posible, agrega la arista con probabilidad $p$ de
-forma independiente. En el caso no dirigido cada par $\{i, j\}$ se considera una sola
-vez (con $i < j$); en el dirigido se consideran los dos pares ordenados.
-
-\begin{lstlisting}[caption={Generador de Gilbert.}]
-def grafo_gilbert(n, p, dirigido=False):
-    grafo = Grafo(dirigido)
-    for i in range(n):
-        grafo.agregar_nodo(i)
-
-    for i in range(n):
-        for j in range(n):
-            if i == j or (not dirigido and j < i):
-                continue
-            if random.random() < p:
-                grafo.agregar_arista(i, j)
-    return grafo
+\begin{lstlisting}[caption={Método \texttt{BFS}.}]
+def BFS(self, s):
+    self._validar_fuente(s)
+    arbol = Grafo(self.dirigido)
+    arbol.agregar_nodo(s)
+    descubierto = {s}
+    capa = [s]
+    while capa:
+        siguiente_capa = []
+        for u in capa:
+            for v in self._vecinos[u]:
+                if v not in descubierto:
+                    descubierto.add(v)
+                    arbol.agregar_arista(u, v)
+                    siguiente_capa.append(v)
+        capa = siguiente_capa
+    return arbol
 \end{lstlisting}
 
-A diferencia del modelo de Erd\H{o}s--Rényi, el número de aristas no es fijo: es una
-variable aleatoria binomial con valor esperado $p\binom{n}{2}$ en el caso no dirigido.
-El costo es $\Theta(n^2)$, porque se revisan todos los pares.
+Cada nodo entra a lo más una vez a una capa y cada lista de vecinos se recorre una
+sola vez, así que el costo es $O(n + m)$. El nodo $v$ queda en la capa $L_j$
+exactamente cuando su distancia a $s$ es $j$, y su padre está en $L_{j-1}$. En
+consecuencia, los extremos de toda arista del árbol BFS están en niveles
+consecutivos, y la altura del árbol es la distancia máxima desde $s$.
 
-\paragraph{Ejemplo.} \texttt{grafo\_gilbert(50, 0.1)} genera un grafo de 50 nodos con
-alrededor de $0.1 \cdot \binom{50}{2} = 122.5$ aristas en promedio.
+\subsection{Búsqueda en profundidad recursiva: \texttt{DFS\_R(self, s)}}
 
-% ---------------------------------------------------------------------
-\subsection{Geográfico simple: \texttt{grafo\_geografico(n, r)}}
+Es el algoritmo DFS$(G, u)$ visto en clase: se marca $u$ como explorado y, por cada
+arista $(u, v)$ con $v$ no explorado, se agrega $(u, v)$ al árbol y se invoca
+recursivamente DFS$(G, v)$.
 
-Asigna a cada nodo una posición $(x, y)$ uniforme en el cuadrado unitario y conecta
-dos nodos cuando su distancia euclidiana es menor o igual que $r$.
+\begin{lstlisting}[caption={Métodos \texttt{DFS\_R} y \texttt{\_dfs\_recursivo}.}]
+def DFS_R(self, s):
+    self._validar_fuente(s)
+    arbol = Grafo(self.dirigido)
+    arbol.agregar_nodo(s)
+    # La profundidad de la recursión puede llegar al número de nodos
+    limite_original = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(limite_original, len(self.nodos) + 100))
+    try:
+        self._dfs_recursivo(s, set(), arbol)
+    finally:
+        sys.setrecursionlimit(limite_original)
+    return arbol
 
-\begin{lstlisting}[caption={Generador geográfico simple.}]
-def grafo_geografico(n, r, dirigido=False):
-    grafo = Grafo(dirigido)
-    posiciones = [(random.random(), random.random()) for _ in range(n)]
-    for i in range(n):
-        grafo.agregar_nodo(i)
-
-    for i in range(n):
-        for j in range(n):
-            if i == j or (not dirigido and j < i):
-                continue
-            dx = posiciones[i][0] - posiciones[j][0]
-            dy = posiciones[i][1] - posiciones[j][1]
-            if math.hypot(dx, dy) <= r:
-                grafo.agregar_arista(i, j)
-    return grafo
+def _dfs_recursivo(self, u, explorado, arbol):
+    explorado.add(u)
+    for v in self._vecinos[u]:
+        if v not in explorado:
+            arbol.agregar_arista(u, v)
+            self._dfs_recursivo(v, explorado, arbol)
 \end{lstlisting}
 
-La aleatoriedad está solo en las posiciones; una vez fijadas, las aristas quedan
-determinadas. Las posiciones se usan únicamente durante la generación y no se guardan
-en el grafo. El costo es $\Theta(n^2)$, por la comparación de todos los pares.
+En el peor caso la recursión alcanza una profundidad igual al número de nodos (por
+ejemplo, en un camino). Python limita por omisión la profundidad a 1000 llamadas,
+por lo que \texttt{DFS\_R} aumenta el límite antes de empezar y lo restaura al
+terminar. Aun así, la pila del sistema operativo impone un tope: en Python~3.6
+sobre Windows, la recursión funciona hasta unos 4000 niveles de profundidad. Los
+árboles de este proyecto llegan a lo más a 417 niveles, muy por debajo de ese tope.
+El costo es $O(n + m)$.
 
-\paragraph{Ejemplo.} \texttt{grafo\_geografico(50, 0.22)} genera un grafo de 50 nodos
-en el que se conectan los nodos situados a distancia $0.22$ o menor.
+\subsection{Búsqueda en profundidad iterativa: \texttt{DFS\_I(self, s)}}
 
-% ---------------------------------------------------------------------
-\subsection{Barabási--Albert: \texttt{grafo\_barabasi\_albert(n, d)}}
+La versión iterativa sustituye la pila de llamadas de Python por una pila
+explícita. Cada elemento de la pila es un par $(u, \text{pendientes})$, donde
+\emph{pendientes} es un iterador sobre los vecinos de $u$ que aún no se han
+revisado. En cada paso se toma el elemento del tope y se avanza su iterador hasta
+encontrar un vecino $v$ no explorado. Si lo encuentra, agrega $(u, v)$ al árbol y
+apila $v$, lo que equivale a la llamada recursiva. Si el iterador se agota, $u$ se
+desapila, lo que equivale al regreso de la llamada.
 
-Se implementa la variante del modelo en la que $d$ es el grado máximo de cada nodo.
-Los primeros $d$ nodos se conectan todos entre sí. Después, cada nodo nuevo recorre
-los nodos existentes en orden aleatorio y se conecta con cada candidato $v$ con
-probabilidad
-\[
-    P(v) = 1 - \frac{\operatorname{grado}(v)}{d},
-\]
-deteniéndose cuando el nodo nuevo alcanza $d$ aristas.
-
-\begin{lstlisting}[caption={Generador de Barabási--Albert.}]
-def grafo_barabasi_albert(n, d, dirigido=False):
-    grafo = Grafo(dirigido)
-    for i in range(min(d, n)):
-        grafo.agregar_nodo(i)
-    for i in range(min(d, n)):
-        for j in range(i + 1, min(d, n)):
-            grafo.agregar_arista(i, j)
-
-    for nuevo in range(d, n):
-        grafo.agregar_nodo(nuevo)
-        candidatos = list(range(nuevo))
-        random.shuffle(candidatos)
-        for objetivo in candidatos:
-            if grafo.grado(nuevo) >= d:
+\begin{lstlisting}[caption={Método \texttt{DFS\_I}.}]
+def DFS_I(self, s):
+    self._validar_fuente(s)
+    arbol = Grafo(self.dirigido)
+    arbol.agregar_nodo(s)
+    explorado = {s}
+    pila = [(s, iter(self._vecinos[s]))]
+    while pila:
+        u, pendientes = pila[-1]
+        for v in pendientes:
+            if v not in explorado:
+                explorado.add(v)
+                arbol.agregar_arista(u, v)
+                pila.append((v, iter(self._vecinos[v])))
                 break
-            probabilidad = 1 - grafo.grado(objetivo) / d
-            if random.random() < probabilidad:
-                grafo.agregar_arista(nuevo, objetivo)
-    return grafo
+        else:
+            # u ya no tiene vecinos sin explorar: se regresa a su padre
+            pila.pop()
+    return arbol
 \end{lstlisting}
 
-Un nodo que ya tiene grado $d$ tiene probabilidad cero de recibir más aristas, por lo
-que ningún nodo supera el grado $d$ y el grafo tiene a lo más $nd/2$ aristas. El orden
-aleatorio de los candidatos evita favorecer siempre a los nodos con identificador más
-bajo. Cada candidato se prueba una sola vez, así que un nodo nuevo puede terminar con
-menos de $d$ aristas. Como cada nodo nuevo recorre hasta todos los anteriores, el
-costo es $O(n^2)$.
+Como el iterador conserva la posición en la lista de vecinos, cada vecino se revisa
+una sola vez y el costo es $O(n + m)$. Además, la pila contiene en todo momento los
+mismos nodos que la pila de llamadas de \texttt{DFS\_R}, y ambos métodos revisan
+los vecinos en el mismo orden. Por lo tanto, \texttt{DFS\_I} y \texttt{DFS\_R}
+producen exactamente el mismo árbol a partir del mismo nodo fuente. A diferencia de
+la versión recursiva, \texttt{DFS\_I} no depende del límite de recursión de Python.
 
-\paragraph{Ejemplo.} \texttt{grafo\_barabasi\_albert(50, 4)} genera un grafo de
-50 nodos con grado máximo 4 y, por lo tanto, a lo más 100 aristas.
+\subsection{Verificación}
 
-% ---------------------------------------------------------------------
-\subsection{Dorogovtsev--Mendes: \texttt{grafo\_dorogovtsev\_mendes(n)}}
+Además de generar los archivos, se comprobó con un programa de prueba que, en
+grafos de los seis modelos y de los tres tamaños, se cumplen las siguientes
+propiedades:
 
-Comienza con un triángulo formado por los nodos 0, 1 y 2. Cada nodo nuevo elige una
-arista existente uniformemente al azar y se conecta con sus dos extremos, con lo que
-forma un nuevo triángulo.
+\begin{itemize}
+    \item Los tres árboles contienen todos los nodos alcanzables desde $s$, tienen
+          $n - 1$ aristas, son conexos y solo usan aristas del grafo original.
+    \item El nivel de cada nodo en el árbol BFS es igual a su distancia mínima a $s$,
+          calculada de forma independiente.
+    \item En los árboles DFS, toda arista del grafo que no pertenece al árbol une a
+          un nodo con uno de sus ancestros; es decir, no hay aristas cruzadas.
+    \item \texttt{DFS\_R} y \texttt{DFS\_I} producen la misma lista de aristas.
+    \item En un grafo no conexo, el árbol solo contiene la componente de $s$.
+    \item \texttt{DFS\_R} procesa un camino de 4000 nodos sin exceder el límite de
+          recursión.
+\end{itemize}
 
-\begin{lstlisting}[caption={Generador de Dorogovtsev--Mendes.}]
-def grafo_dorogovtsev_mendes(n, dirigido=False):
-    grafo = Grafo(dirigido)
-    for i in range(3):
-        grafo.agregar_nodo(i)
-    grafo.agregar_arista(0, 1)
-    grafo.agregar_arista(1, 2)
-    grafo.agregar_arista(2, 0)
-
-    for nuevo in range(3, n):
-        grafo.agregar_nodo(nuevo)
-        arista = random.choice(grafo.aristas)
-        grafo.agregar_arista(nuevo, arista.origen.id_nodo)
-        grafo.agregar_arista(nuevo, arista.destino.id_nodo)
-    return grafo
-\end{lstlisting}
-
-Cada nodo nuevo aporta exactamente dos aristas, así que el grafo tiene siempre
-$3 + 2(n-3) = 2n - 3$ aristas y es conexo por construcción. Elegir una arista al azar
-equivale a elegir sus extremos con probabilidad proporcional a su grado, lo que
-favorece a los nodos mejor conectados. Como \texttt{random.choice} toma tiempo
-constante, el costo total es $\Theta(n)$.
-
-\paragraph{Ejemplo.} \texttt{grafo\_dorogovtsev\_mendes(50)} genera un grafo de
-50 nodos y $2 \cdot 50 - 3 = 97$ aristas.
-
-% ---------------------------------------------------------------------
-\subsection{Resumen}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{llll}
-\toprule
-Modelo & Parámetros & Aristas & Costo \\
-\midrule
-Malla & $m$, $n$ & $2mn - m - n$ & $\Theta(mn)$ \\
-Erd\H{o}s--Rényi & $n$, $m$ & $m$ & $\approx m$ intentos si $m \ll \binom{n}{2}$ \\
-Gilbert & $n$, $p$ & $p\binom{n}{2}$ en promedio & $\Theta(n^2)$ \\
-Geográfico simple & $n$, $r$ & aleatorio & $\Theta(n^2)$ \\
-Barabási--Albert & $n$, $d$ & a lo más $nd/2$ & $O(n^2)$ \\
-Dorogovtsev--Mendes & $n$ & $2n - 3$ & $\Theta(n)$ \\
-\bottomrule
-\end{tabular}
-\caption{Resumen de los generadores (caso no dirigido).}
-\end{table}
+Todo el código, incluidos los scripts de generación y de imágenes, se ejecutó con
+Python~3.6.8, la versión solicitada.
 
 % =====================================================================
-\section{Ejemplo de uso}
+\section{Experimentos}
 
-El siguiente programa genera un grafo con el modelo de Gilbert, consulta algunas de
-sus propiedades y lo guarda en formato GraphViz:
-
-\begin{lstlisting}[caption={Uso básico de la biblioteca.}]
-from grafos import grafo_gilbert
-
-g = grafo_gilbert(50, 0.1)
-
-print(g)                 # Grafo(nodos=50, aristas=..., dirigido=False)
-print(g.grado(0))        # grado del nodo 0
-print(g.vecinos(0))      # conjunto de vecinos del nodo 0
-print(g.es_conexo())     # True si todos los nodos están conectados
-
-g.guardar_graphviz("mi_grafo.gv")
-\end{lstlisting}
-
-% =====================================================================
-\section{Generación de los archivos GraphViz}
-
-El script \texttt{generar\_gv.py} genera 18 archivos \texttt{.gv}: tres tamaños
-(50, 200 y 500 nodos) por cada uno de los seis modelos. Para que las visualizaciones
-muestren una sola componente, cada grafo se vuelve a generar hasta que
-\texttt{es\_conexo()} devuelve \texttt{True}, con un máximo de 1000 intentos.
-
-Los parámetros de los modelos aleatorios se eligieron ligeramente por encima del
-umbral de conectividad, de modo que el grafo resulte conexo casi siempre:
+El script \texttt{generar\_gv.py} genera tres grafos por cada uno de los seis
+modelos del Proyecto~1, con 30, 100 y 500 nodos. Cada grafo se vuelve a generar
+hasta que resulta conexo, de modo que los árboles abarcan todos sus nodos. Luego
+calcula los tres árboles de cada grafo desde el nodo fuente $s$, que es el primer
+nodo del grafo: $0$ en los modelos aleatorios y $(0, 0)$, una esquina, en la malla.
 
 \begin{table}[H]
 \centering
 \begin{tabular}{ll}
 \toprule
-Modelo & Parámetro usado \\
+Modelo & Parámetros \\
 \midrule
 Erd\H{o}s--Rényi & $m = \operatorname{round}\!\left(\dfrac{n(\ln n + 2)}{2}\right)$ \\[10pt]
 Gilbert & $p = \dfrac{\ln n + 3}{n}$ \\[10pt]
 Geográfico simple & $r = \sqrt{\dfrac{\ln n + 4}{\pi n}}$ \\[10pt]
 Barabási--Albert & $d = 4$ \\[4pt]
-Malla & $5 \times 10$, $10 \times 20$ y $20 \times 25$ \\
+Dorogovtsev--Mendes & sin parámetros adicionales \\[4pt]
+Malla & $5 \times 6$, $10 \times 10$ y $20 \times 25$ \\
 \bottomrule
 \end{tabular}
-\caption{Parámetros usados en \texttt{generar\_gv.py}.}
+\caption{Parámetros de los generadores.}
 \end{table}
 
-La tabla~\ref{tab:resultados} muestra el número de aristas de los grafos generados.
+Los grafos se guardan en \texttt{gv/generados/} y los árboles en
+\texttt{gv/calculados/}. El script \texttt{generar\_imagenes.py} dibuja todos los
+archivos con Graphviz y elige la forma de dibujo según el tipo de grafo:
+
+\begin{itemize}
+    \item \textbf{Árboles BFS:} \texttt{twopi}, que coloca la raíz al centro y cada
+          capa en un anillo.
+    \item \textbf{Malla y sus árboles:} \texttt{neato}, con cada nodo fijo en su
+          posición de la cuadrícula.
+    \item \textbf{Demás grafos y árboles DFS:} \texttt{sfdp}.
+\end{itemize}
+
+% =====================================================================
+\section{Resultados}
+
+La tabla~\ref{tab:alturas} muestra el tamaño de cada grafo generado y la altura de
+sus árboles, es decir, el nivel más profundo alcanzado desde $s$. Los grafos son
+aleatorios, así que los valores corresponden a la ejecución incluida en el
+repositorio y cambian si los grafos se vuelven a generar.
 
 \begin{table}[H]
 \centering
-\begin{tabular}{lrrr}
+\begin{tabular}{lrrrr}
 \toprule
- & \multicolumn{3}{c}{Aristas} \\
-\cmidrule(l){2-4}
-Modelo & $n = 50$ & $n = 200$ & $n = 500$ \\
+ & & & \multicolumn{2}{c}{Altura del árbol} \\
+\cmidrule(l){4-5}
+Grafo & Nodos & Aristas & BFS & DFS \\
 \midrule
-Erd\H{o}s--Rényi & 148 & 730 & 2054 \\
-Gilbert & 178 & 814 & 2241 \\
-Geográfico simple & 179 & 817 & 2445 \\
-Barabási--Albert & 96 & 395 & 996 \\
-Dorogovtsev--Mendes & 97 & 397 & 997 \\
-Malla & 85 & 370 & 955 \\
+Erd\H{o}s--Rényi & 30 & 81 & 3 & 26 \\
+Gilbert & 30 & 80 & 4 & 22 \\
+Geográfico simple & 30 & 89 & 5 & 26 \\
+Barabási--Albert & 30 & 55 & 9 & 18 \\
+Dorogovtsev--Mendes & 30 & 57 & 3 & 7 \\
+Malla $5 \times 6$ & 30 & 49 & 9 & 22 \\
+\midrule
+Erd\H{o}s--Rényi & 100 & 330 & 5 & 83 \\
+Gilbert & 100 & 367 & 4 & 82 \\
+Geográfico simple & 100 & 368 & 9 & 65 \\
+Barabási--Albert & 100 & 197 & 21 & 66 \\
+Dorogovtsev--Mendes & 100 & 197 & 4 & 16 \\
+Malla $10 \times 10$ & 100 & 180 & 18 & 78 \\
+\midrule
+Erd\H{o}s--Rényi & 500 & 2054 & 5 & 406 \\
+Gilbert & 500 & 2349 & 4 & 417 \\
+Geográfico simple & 500 & 2348 & 17 & 338 \\
+Barabási--Albert & 500 & 996 & 90 & 287 \\
+Dorogovtsev--Mendes & 500 & 997 & 5 & 21 \\
+Malla $20 \times 25$ & 500 & 955 & 43 & 299 \\
 \bottomrule
 \end{tabular}
-\caption{Número de aristas de los 18 grafos generados.}
-\label{tab:resultados}
+\caption{Tamaño de los grafos generados y altura de sus árboles. La columna DFS
+vale para \texttt{DFS\_R} y \texttt{DFS\_I}, que producen el mismo árbol.}
+\label{tab:alturas}
 \end{table}
 
-Los valores coinciden con lo esperado: Erd\H{o}s--Rényi tiene exactamente el número de
-aristas solicitado, Dorogovtsev--Mendes tiene $2n - 3$, la malla tiene $2mn - m - n$ y
-Barabási--Albert queda apenas por debajo de su cota $nd/2$ (100, 400 y 1000).
+De la tabla se desprenden varias observaciones:
+
+\begin{itemize}
+    \item \textbf{BFS produce árboles poco profundos.} En los modelos de
+          Erd\H{o}s--Rényi, Gilbert y Dorogovtsev--Mendes, la altura del árbol BFS
+          se mantiene entre 3 y 5 aunque $n$ pase de 30 a 500: todo nodo está a
+          pocos pasos de $s$.
+    \item \textbf{DFS produce árboles profundos.} En los grafos más densos, el árbol
+          DFS es casi un camino: con 500 nodos, su altura supera 400 en
+          Erd\H{o}s--Rényi y Gilbert.
+    \item \textbf{Dorogovtsev--Mendes es la excepción en DFS.} Su árbol DFS es mucho
+          más bajo que en los demás modelos (21 con 500 nodos), porque cada nodo
+          nuevo se conecta solo a los extremos de una arista existente, y los nodos
+          antiguos concentran casi todas las conexiones.
+    \item \textbf{La geometría limita a BFS.} En el modelo geográfico y en la malla,
+          las aristas solo unen nodos cercanos, así que la distancia desde $s$ crece
+          con el tamaño del grafo. En la malla, la altura BFS es exactamente la
+          distancia de la esquina $(0, 0)$ a la esquina opuesta: $(f - 1) + (c - 1)$
+          para una malla de $f \times c$.
+    \item \textbf{Barabási--Albert tiene el árbol BFS más alto.} La variante
+          implementada limita el grado de cada nodo a $d = 4$, por lo que no se
+          forman nodos muy conectados que acorten las distancias.
+\end{itemize}
 
 % =====================================================================
-\section{Visualización de los grafos}
+\section{Visualización}
 
-Los archivos \texttt{.gv} se visualizaron con Gephi. Las
-figuras~\ref{fig:erdos} a~\ref{fig:malla} muestran los 18 grafos generados.
+Las figuras~\ref{fig:er30} a~\ref{fig:malla500} muestran cada grafo generado junto
+con sus tres árboles. Como \texttt{DFS\_R} y \texttt{DFS\_I} producen el mismo
+árbol, sus imágenes coinciden.
+\clearpage
 
-\tresgrafos{1_Erdos_Rényi}{Erd\H{o}s--Rényi}{fig:erdos}
-\tresgrafos{2_Gilbert}{Gilbert}{fig:gilbert}
-\tresgrafos{3_Geográfico}{geográfico simple}{fig:geografico}
-\tresgrafos{4_Barabasi_albert}{Barabási--Albert}{fig:barabasi}
-\tresgrafos{5_Dorogovtsev_mendes}{Dorogovtsev--Mendes}{fig:dorogovtsev}
-\tresgrafos{6_Malla}{malla}{fig:malla}
+\cuatrografos{1_Erdos_Renyi_n30}{Erd\H{o}s--Rényi con 30 nodos}{fig:er30}
+\cuatrografos{2_Gilbert_n30}{Gilbert con 30 nodos}{fig:gil30}
+\cuatrografos{3_Geografico_n30}{Geográfico simple con 30 nodos}{fig:geo30}
+\cuatrografos{4_Barabasi_Albert_n30}{Barabási--Albert con 30 nodos}{fig:ba30}
+\cuatrografos{5_Dorogovtsev_Mendes_n30}{Dorogovtsev--Mendes con 30 nodos}{fig:dm30}
+\cuatrografos{6_Malla_n30}{Malla de $5 \times 6$}{fig:malla30}
+
+\cuatrografos{1_Erdos_Renyi_n100}{Erd\H{o}s--Rényi con 100 nodos}{fig:er100}
+\cuatrografos{2_Gilbert_n100}{Gilbert con 100 nodos}{fig:gil100}
+\cuatrografos{3_Geografico_n100}{Geográfico simple con 100 nodos}{fig:geo100}
+\cuatrografos{4_Barabasi_Albert_n100}{Barabási--Albert con 100 nodos}{fig:ba100}
+\cuatrografos{5_Dorogovtsev_Mendes_n100}{Dorogovtsev--Mendes con 100 nodos}{fig:dm100}
+\cuatrografos{6_Malla_n100}{Malla de $10 \times 10$}{fig:malla100}
+
+\cuatrografos{1_Erdos_Renyi_n500}{Erd\H{o}s--Rényi con 500 nodos}{fig:er500}
+\cuatrografos{2_Gilbert_n500}{Gilbert con 500 nodos}{fig:gil500}
+\cuatrografos{3_Geografico_n500}{Geográfico simple con 500 nodos}{fig:geo500}
+\cuatrografos{4_Barabasi_Albert_n500}{Barabási--Albert con 500 nodos}{fig:ba500}
+\cuatrografos{5_Dorogovtsev_Mendes_n500}{Dorogovtsev--Mendes con 500 nodos}{fig:dm500}
+\cuatrografos{6_Malla_n500}{Malla de $20 \times 25$}{fig:malla500}
 
 \end{document}

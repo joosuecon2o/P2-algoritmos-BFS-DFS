@@ -1,78 +1,62 @@
-# Biblioteca de generación y manejo de grafos
+# Algoritmos BFS y DFS
 
-Proyecto 1 de Diseño y Análisis de Algoritmos: biblioteca orientada a objetos en Python 3 para describir y utilizar grafos.
+Proyecto 2 de Diseño y Análisis de Algoritmos: a partir de la biblioteca de grafos del [Proyecto 1](https://github.com/joosuecon2o/P1-biblioteca-grafos), se implementan los algoritmos BFS y DFS (recursivo e iterativo). Dado un nodo fuente `s`, cada uno calcula el árbol inducido por el recorrido.
+
+## Métodos nuevos de la clase `Grafo`
+
+Los tres métodos están en `grafos/grafo.py`. Cada uno recibe el identificador del nodo fuente y devuelve el árbol como un nuevo objeto `Grafo`, que contiene los nodos alcanzables desde `s` y las aristas (padre, hijo) del recorrido.
+
+| Método | Algoritmo | Funcionamiento |
+|---|---|---|
+| `BFS(self, s)` | Búsqueda a lo ancho | Explora por capas: `L[0] = {s}` y `L[i+1]` contiene los nodos no descubiertos con una arista hacia `L[i]`. Cada nodo se une con el nodo de la capa anterior que lo descubrió. |
+| `DFS_R(self, s)` | Búsqueda en profundidad, recursiva | `DFS(u)` marca `u` como explorado y, por cada arista `(u, v)` con `v` no explorado, agrega `(u, v)` al árbol e invoca `DFS(v)`. |
+| `DFS_I(self, s)` | Búsqueda en profundidad, iterativa | Sustituye la recursión por una pila explícita de pares (nodo, vecinos pendientes), que reproduce la pila de llamadas de `DFS_R`. |
+
+Todos son O(n + m). Como `DFS_I` simula exactamente la recursión de `DFS_R`, ambos producen el mismo árbol a partir del mismo nodo fuente. `DFS_R` aumenta temporalmente el límite de recursión de Python para no fallar en grafos con caminos largos. Aun así, la pila del sistema impone un tope: en Python 3.6 sobre Windows, `DFS_R` funciona hasta unos 4000 niveles de profundidad. Para grafos más profundos conviene usar `DFS_I`, que no tiene ese límite. Los árboles de este proyecto llegan a lo más a 417 niveles.
+
+El código está probado con Python 3.6.8, la versión que pide el curso.
 
 ## Estructura
 
 - `grafos/` — código fuente de la biblioteca
   - `nodo.py` — clase `Nodo`
   - `arista.py` — clase `Arista`
-  - `grafo.py` — clase `Grafo` (incluye `guardar_graphviz` para exportar a formato GraphViz)
-  - `generadores.py` — funciones para generar grafos
-- `generar_gv.py` — script que genera los 18 archivos `.gv` (3 tamaños de 50, 200 y 500 nodos por cada uno de los 6 modelos)
-- `gv/` — archivos `.gv` generados
-- `imagenes/` — imágenes de los grafos generados (creadas con Gephi)
-- `reporte.tex` — reporte del proyecto en LaTeX
-- `reporte.pdf` — reporte compilado
+  - `grafo.py` — clase `Grafo`, con `BFS`, `DFS_R` y `DFS_I`
+  - `generadores.py` — generadores de grafos (malla, Erdős–Rényi, Gilbert, geográfico simple, Barabási–Albert y Dorogovtsev–Mendes)
+- `generar_gv.py` — genera los grafos y calcula sus árboles
+- `generar_imagenes.py` — dibuja todos los `.gv` con Graphviz
+- `gv/generados/` — 18 grafos generados: 6 modelos × 30, 100 y 500 nodos
+- `gv/calculados/` — 54 árboles: BFS, DFS_R y DFS_I de cada grafo generado
+- `imagenes/generados/` y `imagenes/calculados/` — una imagen PNG por cada archivo `.gv`
 
-## Representación
-
-La clase `Grafo` usa una lista de adyacencia basada en conjuntos, junto con una lista de aristas:
-
-| Atributo | Tipo | Contenido |
-|---|---|---|
-| `nodos` | `dict` | identificador → objeto `Nodo` |
-| `aristas` | `list` | objetos `Arista`, en orden de inserción |
-| `_vecinos` | `dict` de `set` | identificador → identificadores adyacentes |
-| `_grado` | `dict` | identificador → número de aristas incidentes |
-
-Los grafos son simples: `agregar_arista` ignora los lazos y las aristas repetidas, y en esos casos devuelve `None`.
-
-## Generadores
-
-Todos reciben el parámetro opcional `dirigido` (por omisión `False`) y devuelven un `Grafo`.
-
-| Función | Modelo | Parámetros |
-|---|---|---|
-| `grafo_malla(m, n)` | Malla | `m` columnas y `n` filas |
-| `grafo_erdos_renyi(n, m)` | Erdős–Rényi | `n` nodos y `m` aristas elegidas al azar |
-| `grafo_gilbert(n, p)` | Gilbert | `n` nodos; cada arista se crea con probabilidad `p` |
-| `grafo_geografico(n, r)` | Geográfico simple | `n` nodos en el cuadrado unitario; se conectan los que están a distancia ≤ `r` |
-| `grafo_barabasi_albert(n, d)` | Barabási–Albert | `n` nodos con grado máximo `d` |
-| `grafo_dorogovtsev_mendes(n)` | Dorogovtsev–Mendes | `n` nodos; cada nodo nuevo se une a los extremos de una arista al azar |
-
-Los modelos aleatorios usan el módulo `random` sin fijar semilla, así que cada ejecución produce un grafo distinto. Para obtener resultados reproducibles, llama a `random.seed(...)` antes de generar.
+Los nombres de los árboles indican el grafo de origen y el algoritmo, por ejemplo `3_Geografico_n100_DFS_I.gv`.
 
 ## Uso
 
 ```python
 from grafos import grafo_gilbert
 
-g = grafo_gilbert(50, 0.1)
+g = grafo_gilbert(30, 0.2)
 
-print(g)                # Grafo(nodos=50, aristas=..., dirigido=False)
-print(g.grado(0))       # grado del nodo 0
-print(g.vecinos(0))     # conjunto de vecinos del nodo 0
-print(g.es_conexo())    # True si todos los nodos están conectados
+arbol_bfs = g.BFS(0)
+arbol_dfs_r = g.DFS_R(0)
+arbol_dfs_i = g.DFS_I(0)
 
-g.guardar_graphviz("mi_grafo.gv")
+print(arbol_bfs)        # Grafo(nodos=..., aristas=..., dirigido=False)
+arbol_bfs.guardar_graphviz("bfs.gv")
 ```
 
-## Generar los archivos .gv
+## Generar los archivos
 
 ```
 python generar_gv.py
+python generar_imagenes.py
 ```
 
-El script vuelve a generar cada grafo hasta obtener uno conexo y lo guarda en `gv/`. Las imágenes de `imagenes/` no se generan con el script: se hicieron a mano en Gephi a partir de esos archivos.
+`generar_gv.py` vuelve a generar cada grafo hasta obtener uno conexo, de modo que los árboles abarcan todos los nodos. El nodo fuente es el primero del grafo: `0` en los modelos aleatorios y `(0, 0)` en la malla.
 
-## Reporte
+`generar_imagenes.py` requiere [Graphviz](https://graphviz.org). En las imágenes, el nodo fuente aparece en rojo, y la forma de dibujo depende del grafo:
 
-`reporte.tex` describe el funcionamiento de las clases y de los generadores, e incluye las 18 imágenes. Para compilarlo se necesita una distribución de LaTeX (por ejemplo, MiKTeX) y ejecutar dos veces, para que se resuelvan el índice y las referencias:
-
-```
-pdflatex reporte.tex
-pdflatex reporte.tex
-```
-
-El reporte carga las imágenes desde `imagenes/`, así que debe compilarse desde la raíz del proyecto.
+- **Árboles BFS:** se dibujan con `twopi`, que coloca la raíz al centro y cada capa en un anillo.
+- **Malla y sus árboles:** se dibujan con `neato`, con cada nodo en su posición de la cuadrícula.
+- **Demás grafos y árboles DFS:** se dibujan con `sfdp`.
